@@ -1,10 +1,10 @@
 # SecLuva — Municipal Infrastructure Issue Deduplicator
 
-A multi-tenant MERN web app that helps municipalities manage citizen-reported infrastructure problems (potholes, broken streetlights, fallen trees, water leaks, garbage piles) by automatically detecting when multiple reports describe the same physical incident, using geographic proximity and text similarity.
+A multi-tenant web application — React frontend, Node/Express API, PostgreSQL + PostGIS database — that helps municipalities manage citizen-reported infrastructure problems (potholes, broken streetlights, fallen trees, water leaks, garbage piles) by automatically detecting when multiple reports describe the same physical incident, using geographic proximity and text similarity.
 
 > **Engineering plan — Phase 1 & 2, with an architecture preview.** This document covers problem discovery, requirements, MVP scope, roadmap, and a lightweight architecture preview. Phase 3 (domain modeling) is the next piece of work — see [Recommended Next Task](#recommended-next-task).
 
-**Project context:** academic capstone · **Timeline:** 16 weeks (one semester) · **Budget:** zero / near-zero · **Report language (MVP):** English only · **Stack:** MERN, modular monolith
+**Project context:** academic capstone · **Timeline:** 16 weeks (one semester) · **Budget:** zero / near-zero · **Report language (MVP):** English only · **Stack:** PostgreSQL + PostGIS · Express · React · Node, modular monolith
 
 Status tags used throughout: **[Confirmed]** · **[Recommended]** · **[Assumption]** · **[Open question]** · **[Future]**
 
@@ -117,6 +117,7 @@ MVP requirements are the smallest set that proves the core loop — submit, dedu
 - Should the capstone defense demo show ≥2 municipalities with isolated data live, or is a single tenant with the multi-tenant *architecture* proven (via tests/code) acceptable?
 - Is photo evidence mandatory or optional on report submission?
 - What duplicate-search radius should we start calibrating from — 50m and 100m are both defensible starting points and will be tuned empirically in Phase 6/10.
+- The project now uses PostgreSQL + PostGIS instead of the originally-stated MongoDB — if there's an already-approved proposal document on file with your institution naming "MERN/MongoDB" specifically, confirm the substitution doesn't need re-approval before Phase 3 work proceeds.
 
 ---
 
@@ -172,7 +173,7 @@ MVP requirements are the smallest set that proves the core loop — submit, dedu
 ### 2.5 Dependencies & Technical Uncertainties
 
 - Choice of baseline similarity measure (TF-IDF + cosine vs. Dice/Jaccard token overlap) needs a short early spike before Phase 6 is finalized — it changes how thresholds get calibrated in Phase 10.
-- Final free-tier hosting target (Render/Railway/Fly.io for the API, Vercel/Netlify for the frontend, Atlas for MongoDB) isn't locked yet — affects Phase 12 specifics only, not the architecture.
+- Final free-tier hosting target (Render/Railway/Fly.io for the API, Vercel/Netlify for the frontend, Neon/Supabase for PostgreSQL+PostGIS) isn't locked yet — affects Phase 12 specifics only, not the architecture.
 - Institution's required report/diagram format (open question, §1.9) could add documentation work not currently budgeted in the roadmap.
 
 ### 2.6 Prioritized Backlog (epic level)
@@ -246,9 +247,10 @@ Enough to validate the stack and module boundaries now, without committing to fo
                               │
                               ▼
    ┌─────────────────────────────────┐   ┌───────────────────────────┐
-   │ MongoDB (Atlas free tier)        │   │ File storage                │
-   │ tenant-scoped collections ·      │   │ local disk (multer) →       │
-   │ 2dsphere index                   │   │ cloud, later                │
+   │ PostgreSQL + PostGIS (Neon/      │   │ File storage                │
+   │ Supabase free tier)              │   │ local disk (multer) →       │
+   │ tenant_id scoping + RLS ·        │   │ cloud, later                │
+   │ GiST spatial index               │   │                              │
    └─────────────────────────────────┘   └───────────────────────────┘
 ```
 
@@ -259,17 +261,22 @@ Enough to validate the stack and module boundaries now, without committing to fo
 | Frontend | React + Vite | Spec-mandated; Vite gives fast dev iteration over CRA | **[Confirmed]** |
 | Mapping | Leaflet + react-leaflet + OpenStreetMap tiles | Free, no API key, sufficient for pin-drop and display at this scale | **[Recommended]** |
 | Backend | Node.js + Express | Spec-mandated; natural fit for a modular monolith | **[Confirmed]** |
-| ODM | Mongoose | Schema validation + middleware hooks useful for tenant-scoping and audit-log hooks | **[Recommended]** |
+| ORM | Prisma for standard models; raw parameterized SQL (`$queryRaw`) for PostGIS spatial queries | Type-safe schema/migrations for most models; Prisma's native geometry support is limited, so `ST_DWithin`/distance queries are written as raw SQL | **[Recommended]** |
 | Auth | jsonwebtoken + bcrypt | Stateless JWT suits a single monolith without a session store; bcrypt for password hashing | **[Recommended]** |
 | Validation | express-validator | Input validation at the API boundary (Phase 9 requirement) | **[Recommended]** |
 | Hardening | helmet, cors, express-rate-limit | Baseline security posture out of the box | **[Recommended]** |
 | File upload | multer → local disk | Zero cost for MVP; swappable for cloud object storage without touching the API shape | **[Recommended]** |
 | Text similarity | `natural` (TF-IDF/cosine, Jaro-Winkler) | Simple, explainable, zero-cost baseline — matches Phase 6's "start simple" guidance; no external API | **[Recommended]** |
-| Geospatial | MongoDB native 2dsphere + `$geoNear` | Built into MongoDB; no extra library or service needed | **[Confirmed fit]** |
+| Geospatial | PostgreSQL + PostGIS extension — `geography(Point, 4326)` column, GiST index, `ST_DWithin` for radius queries | Mature, well-indexed proximity search; richer spatial function set than a document store's geo operators | **[Recommended]** |
 | Logging | winston + morgan | App-level and HTTP-request logging | **[Recommended]** |
-| Testing | Jest + Supertest, React Testing Library | Standard MERN testing pair, covers API and component layers | **[Recommended]** |
-| DB hosting | MongoDB Atlas free tier (M0) | Fits zero budget | **[Recommended]** |
+| Testing | Jest + Supertest, React Testing Library | Standard testing pair, covers API and component layers | **[Recommended]** |
+| DB hosting | Neon or Supabase free tier (Postgres, PostGIS available) | Fits zero budget; Supabase also bundles free object storage if we later move photos off local disk | **[Recommended]** |
 | App hosting | Render/Railway (API) + Vercel/Netlify (frontend) | Free tiers; final pick deferred to Phase 12 | **[Assumption]** |
+
+**Postgres-specific notes:**
+- The PostGIS extension must be enabled on the database (`CREATE EXTENSION postgis;`) — both Neon and Supabase support this on their free tiers.
+- Beyond app-level tenant-scoping middleware, PostgreSQL **Row-Level Security (RLS)** policies keyed on a session variable (e.g. `app.current_tenant_id`) are a strong, low-cost defense-in-depth layer for the zero-cross-tenant-leakage requirement in §1.6 — recommended for Phase 9, enforced at the database itself rather than relying solely on application code.
+- The relational model (clear FK chains: Report → Incident → Tenant; Incident → StatusHistory; Report → Attachment) and ACID transactions fit this domain's "reassign a report to a different incident, log it atomically" operations more naturally than a document store would.
 
 ---
 
