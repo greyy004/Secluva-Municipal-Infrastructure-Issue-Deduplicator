@@ -261,7 +261,8 @@ Enough to validate the stack and module boundaries now, without committing to fo
 | Frontend | React + Vite | Spec-mandated; Vite gives fast dev iteration over CRA | **[Confirmed]** |
 | Mapping | Leaflet + react-leaflet + OpenStreetMap tiles | Free, no API key, sufficient for pin-drop and display at this scale | **[Recommended]** |
 | Backend | Node.js + Express | Spec-mandated; natural fit for a modular monolith | **[Confirmed]** |
-| ORM | Prisma for standard models; raw parameterized SQL (`$queryRaw`) for PostGIS spatial queries | Type-safe schema/migrations for most models; Prisma's native geometry support is limited, so `ST_DWithin`/distance queries are written as raw SQL | **[Recommended]** |
+| Database access | `pg` (node-postgres) — parameterized SQL in a repository/data-access layer per module | No ORM: direct control over every query, including PostGIS spatial SQL (`ST_DWithin`), with no geometry-type abstraction gap to work around | **[Confirmed]** |
+| Migrations | `node-pg-migrate` (versioned SQL/JS migration files) | Schema versioning without pulling in an ORM's migration engine | **[Recommended]** |
 | Auth | jsonwebtoken + bcrypt | Stateless JWT suits a single monolith without a session store; bcrypt for password hashing | **[Recommended]** |
 | Validation | express-validator | Input validation at the API boundary (Phase 9 requirement) | **[Recommended]** |
 | Hardening | helmet, cors, express-rate-limit | Baseline security posture out of the box | **[Recommended]** |
@@ -277,6 +278,7 @@ Enough to validate the stack and module boundaries now, without committing to fo
 - The PostGIS extension must be enabled on the database (`CREATE EXTENSION postgis;`) — both Neon and Supabase support this on their free tiers.
 - Beyond app-level tenant-scoping middleware, PostgreSQL **Row-Level Security (RLS)** policies keyed on a session variable (e.g. `app.current_tenant_id`) are a strong, low-cost defense-in-depth layer for the zero-cross-tenant-leakage requirement in §1.6 — recommended for Phase 9, enforced at the database itself rather than relying solely on application code.
 - The relational model (clear FK chains: Report → Incident → Tenant; Incident → StatusHistory; Report → Attachment) and ACID transactions fit this domain's "reassign a report to a different incident, log it atomically" operations more naturally than a document store would.
+- No ORM is used. Each feature module (reports, incidents, dedup, tenants, audit) owns a small repository/data-access file with its own parameterized SQL — this keeps PostGIS functions fully accessible and avoids ORM-specific geometry workarounds, at the cost of writing SQL by hand instead of relying on generated queries.
 
 ---
 
