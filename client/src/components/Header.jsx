@@ -13,6 +13,8 @@ function Header() {
         <nav className="site-nav" aria-label="Main navigation">
           <NavLink to="/" end>Home</NavLink>
           <NavLink to="/login">Log in</NavLink>
+          <NavLink to="/register">Register</NavLink>
+          <NavLink to="/report">Report</NavLink>
           <NavLink className="site-nav-cta" to="/register">Get started</NavLink>
         </nav>
       </div>

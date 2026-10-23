@@ -102,6 +102,7 @@ MVP requirements are the smallest set that proves the core loop — submit, dedu
 - Only staff roles may manually re-link or unlink a report from an incident. Citizens cannot alter associations.
 - Every match decision — automatic or manual — stores its evidence (distance, similarity score, category match, decision threshold used) so staff and auditors can see *why*, not just *what*.
 - Incident status follows a defined forward-moving lifecycle; staff can correct a prior status entry but each transition is logged, not overwritten silently.
+- **Program requirement:** per the department's project guidelines, core algorithmic modules must be the student's own implementation rather than a predefined library/API/plugin, except where genuinely unavoidable (web framework, database driver, cryptography, UI rendering). This rules out pre-built NLP/similarity libraries and pre-trained embedding models for the matching engine specifically — distance scoring (Haversine) and text similarity (TF‑IDF + cosine) are hand-implemented in `server/src/dedup/`. It does not apply to general infrastructure (Express, React, `pg`, bcrypt, JWT) or to reference *data* (e.g. the municipality list) — only to the algorithmic modules that are the project's actual contribution.
 
 ### 1.8 Assumptions to Validate
 
@@ -195,21 +196,31 @@ MVP requirements are the smallest set that proves the core loop — submit, dedu
 
 Granular, dependency-ordered task breakdowns (Phase 11 style, with definitions of done) will follow once Phase 3's domain model is locked — breaking tasks down before the entities are fixed risks rework.
 
-### 2.7 Milestone Roadmap — 16 Weeks
+### 2.7 Milestone Roadmap — 16 Weeks (dated)
 
-| Week | Milestone | Key deliverables | Depends on | Completion criteria |
+Dates assume a start of **2026-10-20**. If Dashain/Tihar or any other break falls inside a week below, shift everything after it by however many days you lose — the dependency order matters more than the exact dates.
+
+| Week | Dates | Focus | Concrete deliverable | Depends on |
 |---|---|---|---|---|
-| 1–2 | Requirements & domain model | This plan finalized, ERD, use-case diagram (Phase 3) | — | Scope sign-off |
-| 3–4 | Backend foundation | Repo scaffold, Express skeleton, Mongoose models, JWT auth, tenant middleware | Wk 1–2 | Protected, tenant-scoped route demo works |
-| 5–6 | Citizen reporting flow | Submission API + form, geospatial schema/index, image upload | Wk 3–4 | Report submitted end-to-end, persisted correctly |
-| 7–8 | Baseline dedup engine | Candidate retrieval, similarity scoring, threshold decisioning, new-incident path | Wk 5–6 | Seeded test set yields sane auto-link / queue / new-incident outcomes |
-| 9–10 | Staff dashboard & review queue | Incident list/detail, review queue UI + API, manual correction flow | Wk 7–8 | Staff fully triage a batch of seeded ambiguous reports |
-| 11 | Admin & audit | Municipality/staff admin management, audit log views | Wk 9–10 | Admin scoped to own tenant only; a sample decision's audit trail is visible |
-| 12 | Testing pass | Unit/integration tests, tenant-isolation suite, dedup accuracy evaluation | Wk 7–11 | NFR targets measured and documented |
-| 13 | Security hardening | Validation audit, rate limiting, CORS/helmet config, secret management review | Wk 12 | Phase 9 security checklist fully checked off |
-| 14 | Deployment | Free-tier hosting, environment config, smoke test | Wk 13 | Public demo URL functional end-to-end |
-| 15 | Documentation & report writing | Final report sections, diagrams finalized, API/user docs | Wk 14 | Report draft complete |
-| 16 | Buffer / defense prep | Bug fixes, demo rehearsal, Q&A prep | Wk 15 | Live defense demo runs without blocking issues |
+| 1 | Oct 20–26, 2026 | Domain model + environment | ERD for Tenant/User/CitizenReport/Incident/Category/StatusHistory/Attachment/AuditLog locked; Postgres provisioned (Neon/Supabase) with PostGIS enabled; first migration creates `municipalities_master`, `municipalities`, `users` | — |
+| 2 | Oct 27–Nov 2, 2026 | Auth + tenant foundation | `UserModel.js` implemented (create/find); bcrypt + JWT login; tenant-scoping middleware; `Login.jsx`/`Register.jsx` wired to real endpoints (replacing the placeholder pages) | Wk 1 |
+| 3 | Nov 3–9, 2026 | Citizen report submission | `CitizenReportModel.js` implemented with a `geography(Point,4326)` column; submission API (category, description, photo via multer, location); citizen report form in React; tracking code generated on submit | Wk 2 |
+| 4 | Nov 10–16, 2026 | Baseline dedup engine v1 | `Filtering.js` (own bounding-box + Haversine candidate retrieval) and `TextMatching.js` (own TF‑IDF + cosine similarity) implemented; combined score + auto-link/queue/new-incident decision; a ~20-pair hand-labeled sanity test | Wk 3 |
+| 5 | Nov 17–23, 2026 | Incident + review queue backend | `ConsolidatedIncidentModel`, `StatusHistoryModel`, `AuditLogModel`; incident list/detail API; review-queue API; confirm/reject/re-link endpoints | Wk 4 |
+| 6 | Nov 24–30, 2026 | Staff dashboard frontend | Staff-only incident list/detail pages, review queue UI, status-update UI | Wk 5 |
+| 7–8 | Dec 1–14, 2026 | Admin, audit, core-loop polish | Municipality admin staff management (tenant-scoped); audit log viewer; citizen tracking-code lookup page; bug-fix pass on the full submit→dedup→triage→resolve loop | Wk 6 |
+| 9–10 | Dec 15–28, 2026 | Testing | Unit tests on the dedup scoring function; API integration tests; automated tenant-isolation test suite; labeled test set expanded to 120+ pairs, precision/recall measured and thresholds tuned | Wk 7–8 |
+| 11 | Dec 29, 2026–Jan 4, 2027 | Security hardening | Input validation audit, rate limiting, helmet/CORS review, Postgres RLS policies added, secrets/config review | Wk 9–10 |
+| 12–13 | Jan 5–18, 2027 | Deployment | DB on Neon/Supabase, API on Render/Railway, frontend on Vercel/Netlify; municipality reference data seeded; smoke test in the deployed environment | Wk 11 |
+| 14 | Jan 19–25, 2027 | Documentation & report | ERD/class/sequence/activity diagrams finalized for the written report; Chapter 3 content written; API docs | Wk 12–13 |
+| 15 | Jan 26–Feb 1, 2027 | Buffer | Catch up on anything that slipped; UI polish | Wk 14 |
+| 16 | Feb 2–8, 2027 | Defense prep | Demo rehearsal, Q&A prep, final bug sweep | Wk 15 |
+
+**Week 1 checklist — the part you can start on right now:**
+- [ ] Draw the ERD: `municipalities_master` (the full 293-list reference table), `municipalities` (actual onboarded tenants), `users`, `citizen_reports`, `consolidated_incidents`, `issue_categories`, `status_history`, `attachments`, `audit_log` — with their foreign keys.
+- [ ] Create a free Postgres instance (Neon or Supabase). No PostGIS extension needed — plain numeric lat/lng columns are enough.
+- [ ] Write the first migration file (`node-pg-migrate`) for just three tables: `municipalities_master`, `municipalities`, `users`.
+- [ ] Add a `server/src/db.js` (a `pg` connection pool) and one test route that runs `SELECT NOW()` to confirm the server can actually reach the database.
 
 ---
 
@@ -247,10 +258,10 @@ Enough to validate the stack and module boundaries now, without committing to fo
                               │
                               ▼
    ┌─────────────────────────────────┐   ┌───────────────────────────┐
-   │ PostgreSQL + PostGIS (Neon/      │   │ File storage                │
-   │ Supabase free tier)              │   │ local disk (multer) →       │
-   │ tenant_id scoping + RLS ·        │   │ cloud, later                │
-   │ GiST spatial index               │   │                              │
+   │ PostgreSQL (Neon/Supabase)        │   │ File storage                │
+   │ tenant_id scoping + RLS ·        │   │ local disk (multer) →       │
+   │ lat/lng columns + hand-written   │   │ cloud, later                │
+   │ Haversine distance               │   │                              │
    └─────────────────────────────────┘   └───────────────────────────┘
 ```
 
@@ -267,18 +278,18 @@ Enough to validate the stack and module boundaries now, without committing to fo
 | Validation | express-validator | Input validation at the API boundary (Phase 9 requirement) | **[Recommended]** |
 | Hardening | helmet, cors, express-rate-limit | Baseline security posture out of the box | **[Recommended]** |
 | File upload | multer → local disk | Zero cost for MVP; swappable for cloud object storage without touching the API shape | **[Recommended]** |
-| Text similarity | `natural` (TF-IDF/cosine, Jaro-Winkler) | Simple, explainable, zero-cost baseline — matches Phase 6's "start simple" guidance; no external API | **[Recommended]** |
-| Geospatial | PostgreSQL + PostGIS extension — `geography(Point, 4326)` column, GiST index, `ST_DWithin` for radius queries | Mature, well-indexed proximity search; richer spatial function set than a document store's geo operators | **[Recommended]** |
+| Text similarity | Hand-written TF‑IDF + cosine similarity (`server/src/dedup/TextMatching.js`) | Own implementation per the program's no-predefined-APIs rule for core modules; TF‑IDF/cosine is simple enough to implement and explain from first principles in the report | **[Confirmed — program requirement]** |
+| Geospatial | Plain `latitude`/`longitude` numeric columns + hand-written bounding-box pre-filter (SQL) + hand-written Haversine distance (`server/src/dedup/Filtering.js`) | Same reason: the matching algorithm is the project's core contribution, so distance calculation must be your own code, not a database extension function. A numeric bounding-box filter + exact Haversine in JS performs fine at this project's scale | **[Confirmed — program requirement]** |
 | Logging | winston + morgan | App-level and HTTP-request logging | **[Recommended]** |
 | Testing | Jest + Supertest, React Testing Library | Standard testing pair, covers API and component layers | **[Recommended]** |
 | DB hosting | Neon or Supabase free tier (Postgres, PostGIS available) | Fits zero budget; Supabase also bundles free object storage if we later move photos off local disk | **[Recommended]** |
 | App hosting | Render/Railway (API) + Vercel/Netlify (frontend) | Free tiers; final pick deferred to Phase 12 | **[Assumption]** |
 
 **Postgres-specific notes:**
-- The PostGIS extension must be enabled on the database (`CREATE EXTENSION postgis;`) — both Neon and Supabase support this on their free tiers.
+- PostGIS is **not used for MVP** — distance filtering runs on plain numeric lat/lng columns with a hand-written Haversine function instead, to satisfy the program's own-implementation requirement (see §1.7). PostGIS stays a reasonable *future* upgrade path only if report volume ever grows large enough that spatial indexing meaningfully outperforms a bounding-box pre-filter.
 - Beyond app-level tenant-scoping middleware, PostgreSQL **Row-Level Security (RLS)** policies keyed on a session variable (e.g. `app.current_tenant_id`) are a strong, low-cost defense-in-depth layer for the zero-cross-tenant-leakage requirement in §1.6 — recommended for Phase 9, enforced at the database itself rather than relying solely on application code.
 - The relational model (clear FK chains: Report → Incident → Tenant; Incident → StatusHistory; Report → Attachment) and ACID transactions fit this domain's "reassign a report to a different incident, log it atomically" operations more naturally than a document store would.
-- No ORM is used. Each feature module (reports, incidents, dedup, tenants, audit) owns a small repository/data-access file with its own parameterized SQL — this keeps PostGIS functions fully accessible and avoids ORM-specific geometry workarounds, at the cost of writing SQL by hand instead of relying on generated queries.
+- No ORM is used. Each feature module (reports, incidents, dedup, tenants, audit) owns a small repository/data-access file with its own parameterized SQL — this also keeps the hand-written matching logic free of any ORM or spatial-extension abstraction, consistent with the program's own-implementation requirement.
 
 ---
 

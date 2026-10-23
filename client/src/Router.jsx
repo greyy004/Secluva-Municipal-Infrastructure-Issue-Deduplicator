@@ -5,6 +5,7 @@ import Login from './pages/auth/Login.jsx'
 import Register from './pages/auth/Register.jsx'
 import NotFoundPage from './pages/auth/NotFoundPage.jsx'
 import SiteLayout from './components/SiteLayout.jsx'
+import Report from './pages/home/Report.jsx'
 
 import {createBrowserRouter, RouterProvider} from "react-router-dom";
 
@@ -15,6 +16,7 @@ const router = createBrowserRouter([
       {path:"/", element:<Home />},
       {path:"/login", element:<Login />},
       {path:"/register", element:<Register />},
+      {path:"/report", element:<Report />},
       {path:"*", element:<NotFoundPage />}
     ]
   }
