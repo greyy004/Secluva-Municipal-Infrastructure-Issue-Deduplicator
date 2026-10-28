@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import dedupRoutes from "./src/routes/dedupRoutes.js";
+import pool from "./src/config/Initdb.js";
 
 dotenv.config();
 
